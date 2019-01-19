@@ -50,7 +50,7 @@ with open('songs.csv', mode='w', encoding="utf-8", newline='') as songs_file:
 
     for current_year in range(2002, 2019):
 
-        # For some reason missing this data
+        # For some reason missing this data from 2006 on the website
         if current_year == 2006:
             continue
 
@@ -58,37 +58,44 @@ with open('songs.csv', mode='w', encoding="utf-8", newline='') as songs_file:
         raw_html_100 = simple_get(url_100)
         html_100 = BeautifulSoup(raw_html_100, 'html.parser')
 
+        # Creates a list of strings that are the titles of the top songs in order
         all_titles = html_100.findAll("div", {"class": "ye-chart-item__title"})
         all_titles = [div.string.splitlines()[1] for div in all_titles]
 
+        # Creates a list of strings that are the artists of the top songs in order
+        # For loop deals with the fact that in the html the artists are sometimes stored differently
         all_artists = html_100.findAll("div", {"class": "ye-chart-item__artist"})
-
-        all_ranks = [div.string[1: -1] for div in html_100.findAll("div", {"class": "ye-chart-item__rank"})]
-        print(all_ranks)
         for i in range(len(all_artists)):
             if all_artists[i].a is not None:
                 all_artists[i] = all_artists[i].a.string.splitlines()[1]
             else:
                 all_artists[i] = all_artists[i].string.splitlines()[1]
 
-        # For some reason hot 100 missing some titles
+        # Creates a list of strings that are the ranks of the top songs in order
+        # Necessary because some ranks are missing in the dataset
+        all_ranks = [div.string[1: -1] for div in html_100.findAll("div", {"class": "ye-chart-item__rank"})]
 
+        # Loops through every entry and looks it up on tunebat and then writes it to the csv file
         for i in range(len(all_ranks)):
 
+            # Sometimes url lookup will randomly fail, so the try except allows us to just retry if that happens
             try:
+
+                # Gets the current songs information
                 rank = int(all_ranks[i])
                 title = all_titles.pop(0)
                 artist = all_artists.pop(0)
 
+                # Deletes featuring and everything after it because this leads to it not being on tunebat
                 if "Featuring" in artist:
                     artist = artist[:artist.index("Featuring")]
 
                 tunebat_link = "https://tunebat.com/Search?q=" + title.replace(" ", "+") + "+" + artist.replace(" ", "+")
-                # delete words off artist until result found
-                # delete x's
-
                 raw_html_tunebat = simple_get(tunebat_link)
                 html_tunebat = BeautifulSoup(raw_html_tunebat, 'html.parser')
+
+                # Loops through the links on the search results page and finds the first one that directs to
+                # a song info page. We will then visit that page
                 for link in html_tunebat.find_all('a', href=True):
                     if link['href'][0: 5] == "/Info":
                         tunebat_link = "https://tunebat.com" + link['href']
@@ -96,27 +103,33 @@ with open('songs.csv', mode='w', encoding="utf-8", newline='') as songs_file:
                         html_tunebat = BeautifulSoup(raw_html_tunebat, 'html.parser')
                         break
 
+                # Will contain all the data for the song that Tunebat gives
                 values = []
 
+                # First table of values on site
                 for data in html_tunebat.find_all("div", {"class": "row main-attribute-value"}):
                     values.append(data.string)
 
+                # Second table of values on site
                 for data in html_tunebat.findAll("td", {"class": "attribute-table-element"}):
                     values.append(data.string)
 
+                    # Prevents repeats
                     if len(values) == 12:
                         break
 
+                # Creates the values array
                 display_row = values
                 values.insert(0, artist)
                 values.insert(0, title)
                 values.insert(0, rank)
                 values.insert(0, current_year)
-                print(display_row)
+                print(display_row)  # Progress meter
 
+                # Writes the row to the csv file
                 song_writer.writerow(values)
 
             except:
-                i -= 1
+                i -= 1  # Subtracts 1 from i when a request fails so we can try the link again
 
-        songs_file.flush()
+        songs_file.flush()  # Every year flush the cache so that a failure does not mean loss of all data
