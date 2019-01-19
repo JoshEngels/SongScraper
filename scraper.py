@@ -43,7 +43,6 @@ def log_error(e):
     print(e)
 
 
-# brocklewis9@gmail.com
 # Open the file
 with open('songs.csv', mode='w', encoding="utf-8", newline='') as songs_file:
     song_writer = csv.writer(songs_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
